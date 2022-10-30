@@ -1,0 +1,9 @@
+name: OraxenAntiFurnitureBreak
+version: '${version}'
+main: com.oraxen.furniturebreakprotection.FurnitureBreakProtection
+api-version: 1.19
+softdepend:
+  - Oraxen
+
+commands:
+  oraxen_fix_furniture: {}
