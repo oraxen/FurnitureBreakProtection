@@ -1,5 +1,7 @@
 package com.oraxen.furniturebreakprotection;
 
+import io.th0rgal.oraxen.events.OraxenFurnitureInteractEvent;
+import io.th0rgal.oraxen.utils.logs.Logs;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -19,5 +21,10 @@ public class FurnitureBreakProtectionListener implements Listener {
             if (event.getCause() == HangingBreakEvent.RemoveCause.ENTITY) return;
             event.setCancelled(true);
         }
+    }
+
+    @EventHandler
+    public void on(OraxenFurnitureInteractEvent event) {
+        Logs.broadcast(event.getFurnitureMechanic().getItemID());
     }
 }

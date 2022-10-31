@@ -1,9 +1,10 @@
 plugins {
     id 'java'
+    id 'com.github.johnrengelman.shadow' version '7.1.2'
 }
 
 group = 'com.oraxen'
-version = '1.0'
+version = '1.1'
 
 repositories {
     mavenCentral()
@@ -49,4 +50,21 @@ processResources {
     filesMatching('plugin.yml') {
         expand props
     }
+}
+
+boolean copyJar = project.findProperty('copyJar')
+String pluginPath = project.findProperty('oraxen_plugin_path')
+if (copyJar && pluginPath != null) {
+
+    task copyJarTask(type: Copy) {
+        from 'build/libs/FurnitureBreakProtection-' + version + '.jar'
+        into pluginPath
+        doLast {
+            println('Copied to plugin directory ' + pluginPath)
+            delete('build/libs/FurnitureBreakProtection-' + version + '-all.jar')
+        }
+    }
+
+    copyJarTask.dependsOn('shadowJar')
+    tasks.named('build', DefaultTask).get().dependsOn('copyJarTask')
 }

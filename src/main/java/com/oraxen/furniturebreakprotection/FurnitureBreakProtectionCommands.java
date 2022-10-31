@@ -1,12 +1,18 @@
 package com.oraxen.furniturebreakprotection;
 
 import io.th0rgal.oraxen.OraxenPlugin;
+import io.th0rgal.oraxen.config.Message;
+import io.th0rgal.oraxen.font.GlyphTag;
+import io.th0rgal.oraxen.font.ShiftTag;
 import io.th0rgal.oraxen.mechanics.provided.gameplay.furniture.BlockLocation;
 import io.th0rgal.oraxen.mechanics.provided.gameplay.furniture.FurnitureFactory;
 import io.th0rgal.oraxen.mechanics.provided.gameplay.furniture.FurnitureListener;
 import io.th0rgal.oraxen.mechanics.provided.gameplay.furniture.FurnitureMechanic;
 import io.th0rgal.oraxen.shaded.customblockdata.CustomBlockData;
+import io.th0rgal.oraxen.shaded.kyori.adventure.audience.Audience;
+import io.th0rgal.oraxen.shaded.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import io.th0rgal.oraxen.utils.BlockHelpers;
+import io.th0rgal.oraxen.utils.Utils;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -27,66 +33,71 @@ public class FurnitureBreakProtectionCommands implements CommandExecutor {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         boolean oraxenEnabled = Bukkit.getPluginManager().isPluginEnabled("Oraxen");
         if (sender instanceof Player player && player.isOp() && oraxenEnabled) {
-            int radius = 20;
+            Audience oraxenAudience = OraxenPlugin.get().getAudience().player(player);
+            TagResolver tags = TagResolver.resolver(TagResolver.standard(), GlyphTag.RESOLVER, ShiftTag.RESOLVER, Utils.tagResolver("prefix", Message.PREFIX.toString()));
+            double radius = 20;
             if (args.length != 0) {
                 try {
-                    radius = Integer.parseInt(args[0]);
+                    radius = Double.parseDouble(args[0].replace(",", "."));
                     if (radius < 1) {
-                        player.sendMessage("Radius must be greater than 0!");
+                        oraxenAudience.sendMessage(Utils.MINI_MESSAGE.deserialize("<prefix><red>Radius must be greater than 0!", tags));
                         return true;
                     }
                 } catch (NumberFormatException ignored) {
+                    oraxenAudience.sendMessage(Utils.MINI_MESSAGE.deserialize("<prefix><red>Radius must be a valid number, " + args[0].replace(",", ".") + " is not.", tags));
+                    return true;
                 }
             }
-            if (fix(player, radius))
-                player.sendMessage("Fixed furniture in a radius of " + radius + " blocks.");
-            else player.sendMessage("No furniture found in a radius of " + radius + " blocks.");
+            if (fix(player, radius)) oraxenAudience.sendMessage(Utils.MINI_MESSAGE.deserialize("<prefix><green>Fixed furniture in a radius of " + radius + " blocks.", tags));
+            else oraxenAudience.sendMessage(Utils.MINI_MESSAGE.deserialize("<prefix><red>No furniture found in a radius of " + radius + " blocks.", tags));
         } else {
-            if (oraxenEnabled)
-                sender.sendMessage("You must be an OP player to use this command!");
-            else
-                sender.sendMessage("Oraxen is not enabled!");
+            if (oraxenEnabled) {
+                TagResolver tags = TagResolver.resolver(TagResolver.standard(), GlyphTag.RESOLVER, ShiftTag.RESOLVER, Utils.tagResolver("prefix", Message.PREFIX.toString()));
+                OraxenPlugin.get().getAudience().sender(sender).sendMessage(Utils.MINI_MESSAGE.deserialize("<prefix><red>You must be an OP player to use this command!", tags));
+            }
+            else sender.sendMessage("Oraxen is not enabled!");
         }
         return true;
     }
 
-    private boolean fix(Player player, int radius) {
+    private boolean fix(Player player, double radius) {
         Location loc = player.getLocation();
         int fixed = 0;
-        for (int i = 0; i < radius; i++) {
-            for (int j = 0; j < radius; j++) {
-                if (loc.getBlock().getType() == Material.BARRIER) {
-                    FurnitureMechanic mechanic = FurnitureListener.getFurnitureMechanic(loc.getBlock());
-                    if (mechanic == null) {
-                        loc.getBlock().setType(Material.AIR, false);
-                        new CustomBlockData(loc.getBlock(), OraxenPlugin.get()).clear();
-                        continue;
-                    }
+        for (double x = loc.getX() - radius; x < loc.getX() + radius; x++)
+            for (double y = loc.getY() - radius; y < loc.getY() + radius; y++)
+                for (double z = loc.getZ() - radius; z < loc.getZ() + radius; z++)
+                    if (replace(new Location(player.getWorld(), x, y, z), player)) fixed++;
 
-                    PersistentDataContainer pdc = BlockHelpers.getPDC(loc.getBlock());
-                    String id = pdc.get(FurnitureMechanic.FURNITURE_KEY, PersistentDataType.STRING);
-                    mechanic = (FurnitureMechanic) FurnitureFactory.getInstance().getMechanic(id);
-                    if (mechanic == null) {
-                        loc.getBlock().setType(Material.AIR, false);
-                        new CustomBlockData(loc.getBlock(), OraxenPlugin.get()).clear();
-                        continue;
-                    }
+        return fixed != 0;
+    }
 
-                    float orientation = pdc.getOrDefault(FurnitureMechanic.ORIENTATION_KEY, PersistentDataType.FLOAT, 0f);
-                    final BlockLocation blockLocation = new BlockLocation(Objects.requireNonNull(pdc.get(FurnitureMechanic.ROOT_KEY, PersistentDataType.STRING)));
-                    final Rotation rotation = mechanic.hasRotation() ? mechanic.getRotation()
-                            : getRotation(player.getEyeLocation().getYaw(), mechanic.hasBarriers() && mechanic.getBarriers().size() > 1);
-
-                    loc.getBlock().setType(Material.AIR, false);
-                    new CustomBlockData(loc.getBlock(), OraxenPlugin.get()).clear();
-                    mechanic.place(rotation, orientation, mechanic.getFacing(), blockLocation.toLocation(player.getWorld()), player);
-                    fixed++;
-                }
-                loc = loc.subtract(0, 0, 1);
+    private boolean replace(Location loc, Player player) {
+        if (loc.getBlock().getType() == Material.BARRIER) {
+            FurnitureMechanic mechanic = FurnitureListener.getFurnitureMechanic(loc.getBlock());
+            if (mechanic == null) {
+                loc.getBlock().setType(Material.AIR, false);
+                new CustomBlockData(loc.getBlock(), OraxenPlugin.get()).clear();
+                return false;
             }
-            loc = loc.add(-1, 0, 9);
-        }
-        return fixed > 0;
+
+            PersistentDataContainer pdc = BlockHelpers.getPDC(loc.getBlock());
+            String id = pdc.get(FurnitureMechanic.FURNITURE_KEY, PersistentDataType.STRING);
+            mechanic = (FurnitureMechanic) FurnitureFactory.getInstance().getMechanic(id);
+            if (mechanic == null) {
+                loc.getBlock().setType(Material.AIR, false);
+                new CustomBlockData(loc.getBlock(), OraxenPlugin.get()).clear();
+                return false;
+            }
+
+            float orientation = pdc.getOrDefault(FurnitureMechanic.ORIENTATION_KEY, PersistentDataType.FLOAT, 0f);
+            final BlockLocation blockLocation = new BlockLocation(Objects.requireNonNull(pdc.get(FurnitureMechanic.ROOT_KEY, PersistentDataType.STRING)));
+            final Rotation rotation = mechanic.hasRotation() ? mechanic.getRotation()
+                    : getRotation(player.getEyeLocation().getYaw(), mechanic.hasBarriers() && mechanic.getBarriers().size() > 1);
+            mechanic.removeSolid(loc.getWorld(), blockLocation, orientation);
+            new CustomBlockData(loc.getBlock(), OraxenPlugin.get()).clear();
+            mechanic.place(rotation, orientation, mechanic.getFacing(), blockLocation.toLocation(player.getWorld()), player);
+            return true;
+        } else return false;
     }
 
     private Rotation getRotation(final double yaw, final boolean restricted) {
