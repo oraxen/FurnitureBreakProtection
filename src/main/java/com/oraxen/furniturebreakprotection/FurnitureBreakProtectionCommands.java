@@ -11,6 +11,7 @@ import io.th0rgal.oraxen.mechanics.provided.gameplay.furniture.FurnitureMechanic
 import io.th0rgal.oraxen.shaded.customblockdata.CustomBlockData;
 import io.th0rgal.oraxen.shaded.kyori.adventure.audience.Audience;
 import io.th0rgal.oraxen.shaded.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
+import io.th0rgal.oraxen.shaded.morepersistentdatatypes.DataType;
 import io.th0rgal.oraxen.utils.BlockHelpers;
 import io.th0rgal.oraxen.utils.Utils;
 import org.bukkit.Bukkit;
@@ -25,6 +26,8 @@ import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.Objects;
+
+import static com.oraxen.furniturebreakprotection.FurnitureBreakProtection.ROTATION_KEY;
 
 public class FurnitureBreakProtectionCommands implements CommandExecutor {
 
@@ -91,8 +94,8 @@ public class FurnitureBreakProtectionCommands implements CommandExecutor {
 
             float orientation = pdc.getOrDefault(FurnitureMechanic.ORIENTATION_KEY, PersistentDataType.FLOAT, 0f);
             final BlockLocation blockLocation = new BlockLocation(Objects.requireNonNull(pdc.get(FurnitureMechanic.ROOT_KEY, PersistentDataType.STRING)));
-            final Rotation rotation = mechanic.hasRotation() ? mechanic.getRotation()
-                    : getRotation(player.getEyeLocation().getYaw(), mechanic.hasBarriers() && mechanic.getBarriers().size() > 1);
+            final Rotation rotation = pdc.getOrDefault(ROTATION_KEY, DataType.asEnum(Rotation.class), mechanic.hasRotation() ? mechanic.getRotation()
+                    : getRotation(orientation, mechanic.hasBarriers() && mechanic.getBarriers().size() > 1));
             mechanic.removeSolid(loc.getWorld(), blockLocation, orientation);
             new CustomBlockData(loc.getBlock(), OraxenPlugin.get()).clear();
             mechanic.place(rotation, orientation, mechanic.getFacing(), blockLocation.toLocation(player.getWorld()), player);
