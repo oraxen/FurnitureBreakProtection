@@ -1,12 +1,12 @@
 package com.oraxen.furniturebreakprotection;
 
 import io.th0rgal.oraxen.OraxenPlugin;
+import io.th0rgal.oraxen.api.OraxenFurniture;
 import io.th0rgal.oraxen.config.Message;
 import io.th0rgal.oraxen.font.GlyphTag;
 import io.th0rgal.oraxen.font.ShiftTag;
 import io.th0rgal.oraxen.mechanics.provided.gameplay.furniture.BlockLocation;
 import io.th0rgal.oraxen.mechanics.provided.gameplay.furniture.FurnitureFactory;
-import io.th0rgal.oraxen.mechanics.provided.gameplay.furniture.FurnitureListener;
 import io.th0rgal.oraxen.mechanics.provided.gameplay.furniture.FurnitureMechanic;
 import io.th0rgal.oraxen.shaded.customblockdata.CustomBlockData;
 import io.th0rgal.oraxen.shaded.kyori.adventure.audience.Audience;
@@ -18,6 +18,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Rotation;
+import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -69,26 +70,27 @@ public class FurnitureBreakProtectionCommands implements CommandExecutor {
         for (double x = loc.getX() - radius; x < loc.getX() + radius; x++)
             for (double y = loc.getY() - radius; y < loc.getY() + radius; y++)
                 for (double z = loc.getZ() - radius; z < loc.getZ() + radius; z++)
-                    if (replace(new Location(player.getWorld(), x, y, z), player)) fixed++;
+                    if (replace(new Location(player.getWorld(), x, y, z).getBlock(), player)) fixed++;
 
         return fixed != 0;
     }
 
-    private boolean replace(Location loc, Player player) {
-        if (loc.getBlock().getType() == Material.BARRIER) {
-            FurnitureMechanic mechanic = FurnitureListener.getFurnitureMechanic(loc.getBlock());
+    private boolean replace(Block block, Player player) {
+
+        if (block.getType() == Material.BARRIER) {
+            FurnitureMechanic mechanic = OraxenFurniture.getFurnitureMechanic(block);
             if (mechanic == null) {
-                loc.getBlock().setType(Material.AIR, false);
-                new CustomBlockData(loc.getBlock(), OraxenPlugin.get()).clear();
+                block.setType(Material.AIR, false);
+                new CustomBlockData(block, OraxenPlugin.get()).clear();
                 return false;
             }
 
-            PersistentDataContainer pdc = BlockHelpers.getPDC(loc.getBlock());
+            PersistentDataContainer pdc = BlockHelpers.getPDC(block);
             String id = pdc.get(FurnitureMechanic.FURNITURE_KEY, PersistentDataType.STRING);
             mechanic = (FurnitureMechanic) FurnitureFactory.getInstance().getMechanic(id);
             if (mechanic == null) {
-                loc.getBlock().setType(Material.AIR, false);
-                new CustomBlockData(loc.getBlock(), OraxenPlugin.get()).clear();
+                block.setType(Material.AIR, false);
+                new CustomBlockData(block, OraxenPlugin.get()).clear();
                 return false;
             }
 
@@ -96,8 +98,8 @@ public class FurnitureBreakProtectionCommands implements CommandExecutor {
             final BlockLocation blockLocation = new BlockLocation(Objects.requireNonNull(pdc.get(FurnitureMechanic.ROOT_KEY, PersistentDataType.STRING)));
             final Rotation rotation = pdc.getOrDefault(ROTATION_KEY, DataType.asEnum(Rotation.class), mechanic.hasRotation() ? mechanic.getRotation()
                     : getRotation(orientation, mechanic.hasBarriers() && mechanic.getBarriers().size() > 1));
-            mechanic.removeSolid(loc.getWorld(), blockLocation, orientation);
-            new CustomBlockData(loc.getBlock(), OraxenPlugin.get()).clear();
+            mechanic.removeSolid(block.getWorld(), blockLocation, orientation);
+            new CustomBlockData(block, OraxenPlugin.get()).clear();
             mechanic.place(rotation, orientation, mechanic.getFacing(), blockLocation.toLocation(player.getWorld()), player);
             return true;
         } else return false;
