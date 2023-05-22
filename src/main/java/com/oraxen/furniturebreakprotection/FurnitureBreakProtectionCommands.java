@@ -11,7 +11,6 @@ import io.th0rgal.oraxen.mechanics.provided.gameplay.furniture.FurnitureMechanic
 import io.th0rgal.oraxen.shaded.customblockdata.CustomBlockData;
 import io.th0rgal.oraxen.shaded.kyori.adventure.audience.Audience;
 import io.th0rgal.oraxen.shaded.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
-import io.th0rgal.oraxen.shaded.morepersistentdatatypes.DataType;
 import io.th0rgal.oraxen.utils.AdventureUtils;
 import io.th0rgal.oraxen.utils.BlockHelpers;
 import org.bukkit.Bukkit;
@@ -22,13 +21,13 @@ import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.Objects;
-
-import static com.oraxen.furniturebreakprotection.FurnitureBreakProtection.ROTATION_KEY;
 
 public class FurnitureBreakProtectionCommands implements CommandExecutor {
 
@@ -52,14 +51,15 @@ public class FurnitureBreakProtectionCommands implements CommandExecutor {
                     return true;
                 }
             }
-            if (fix(player, radius)) oraxenAudience.sendMessage(AdventureUtils.MINI_MESSAGE.deserialize("<prefix><green>Fixed furniture in a radius of " + radius + " blocks.", tags));
-            else oraxenAudience.sendMessage(AdventureUtils.MINI_MESSAGE.deserialize("<prefix><red>No furniture found in a radius of " + radius + " blocks.", tags));
+            if (fix(player, radius))
+                oraxenAudience.sendMessage(AdventureUtils.MINI_MESSAGE.deserialize("<prefix><green>Fixed furniture in a radius of " + radius + " blocks.", tags));
+            else
+                oraxenAudience.sendMessage(AdventureUtils.MINI_MESSAGE.deserialize("<prefix><red>No furniture found in a radius of " + radius + " blocks.", tags));
         } else {
             if (oraxenEnabled) {
                 TagResolver tags = TagResolver.resolver(TagResolver.standard(), GlyphTag.RESOLVER, ShiftTag.RESOLVER, AdventureUtils.tagResolver("prefix", Message.PREFIX.toString()));
                 OraxenPlugin.get().getAudience().sender(sender).sendMessage(AdventureUtils.MINI_MESSAGE.deserialize("<prefix><red>You must be an OP player to use this command!", tags));
-            }
-            else sender.sendMessage("Oraxen is not enabled!");
+            } else sender.sendMessage("Oraxen is not enabled!");
         }
         return true;
     }
@@ -76,7 +76,6 @@ public class FurnitureBreakProtectionCommands implements CommandExecutor {
     }
 
     private boolean replace(Block block, Player player) {
-
         if (block.getType() == Material.BARRIER) {
             FurnitureMechanic mechanic = OraxenFurniture.getFurnitureMechanic(block);
             if (mechanic == null) {
@@ -94,21 +93,24 @@ public class FurnitureBreakProtectionCommands implements CommandExecutor {
                 return false;
             }
 
-            float orientation = pdc.getOrDefault(FurnitureMechanic.ORIENTATION_KEY, PersistentDataType.FLOAT, 0f);
+            Entity baseEntity = mechanic.getBaseEntity(block);
+            float yaw = FurnitureMechanic.getFurnitureYaw(baseEntity);
             final BlockLocation blockLocation = new BlockLocation(Objects.requireNonNull(pdc.get(FurnitureMechanic.ROOT_KEY, PersistentDataType.STRING)));
-            final Rotation rotation = pdc.getOrDefault(ROTATION_KEY, DataType.asEnum(Rotation.class), mechanic.hasRotation() ? mechanic.getRotation()
-                    : getRotation(orientation, mechanic.hasBarriers() && mechanic.getBarriers().size() > 1));
-            mechanic.removeSolid(block.getWorld(), blockLocation, orientation);
+            final Rotation rotation = FurnitureMechanic.yawToRotation(yaw);
+            OraxenFurniture.remove(baseEntity, null);
             new CustomBlockData(block, OraxenPlugin.get()).clear();
-            mechanic.place(rotation, orientation, mechanic.getFacing(), blockLocation.toLocation(player.getWorld()), player);
+            OraxenFurniture.place(blockLocation.toLocation(player.getWorld()), mechanic.getItemID(), rotation, baseEntity.getFacing());
             return true;
-        } else return false;
-    }
-
-    private Rotation getRotation(final double yaw, final boolean restricted) {
-        int id = (int) (((Location.normalizeYaw((float) yaw) + 180) * 8 / 360) + 0.5) % 8;
-        if (restricted && id % 2 != 0)
-            id -= 1;
-        return Rotation.values()[id];
+        } else {
+            for (final Entity entity : block.getWorld().getNearbyEntities(block.getLocation(), 1,1,1)) {
+                if (!OraxenFurniture.isFurniture(entity)) continue;
+                if (entity.getType() == EntityType.INTERACTION) continue;
+                FurnitureMechanic mechanic = OraxenFurniture.getFurnitureMechanic(entity);
+                if (!OraxenFurniture.remove(entity, null)) continue;
+                new CustomBlockData(block, OraxenPlugin.get()).clear();
+                OraxenFurniture.place(entity.getLocation(), mechanic.getItemID(), FurnitureMechanic.yawToRotation(entity.getLocation().getYaw()), entity.getFacing());
+            }
+            return false;
+        }
     }
 }
