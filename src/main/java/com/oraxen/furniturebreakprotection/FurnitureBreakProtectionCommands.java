@@ -9,12 +9,14 @@ import io.th0rgal.oraxen.mechanics.provided.gameplay.furniture.FurnitureMechanic
 import io.th0rgal.oraxen.shaded.kyori.adventure.audience.Audience;
 import io.th0rgal.oraxen.shaded.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import io.th0rgal.oraxen.utils.AdventureUtils;
-import io.th0rgal.oraxen.utils.logs.Logs;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.entity.*;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Interaction;
+import org.bukkit.entity.Player;
 
 import java.util.function.Predicate;
 
@@ -57,24 +59,14 @@ public class FurnitureBreakProtectionCommands implements CommandExecutor {
         int fixed = 0;
         Predicate<Entity> predicate = OraxenPlugin.supportsDisplayEntities ? Predicate.not(e -> e instanceof Player || e instanceof Interaction) : Predicate.not(e -> e instanceof Player);
         for (final Entity entity : player.getWorld().getNearbyEntities(player.getLocation(), radius, radius, radius, predicate)) {
-            Logs.debug(entity.getUniqueId());
-            Logs.debug(entity.getType());
-            Logs.debug(entity.getLocation());
             if (!OraxenFurniture.isFurniture(entity)) continue;
             if (entity.getType() == EntityType.INTERACTION) continue;
+
             FurnitureMechanic mechanic = OraxenFurniture.getFurnitureMechanic(entity);
             final float yaw = FurnitureMechanic.getFurnitureYaw(entity);
-            Logs.debug("yaw: " + yaw);
             if (!OraxenFurniture.remove(entity, null)) continue;
-            Logs.debug("yaw2: " + yaw);
-            Entity placedEntity = mechanic.place(entity.getLocation(), yaw, entity.getFacing());
-            if (placedEntity instanceof ItemFrame itemFrame) {
-                itemFrame.setRotation(FurnitureMechanic.yawToRotation(yaw));
-            } else {
-                placedEntity.setRotation(yaw, 0);
-            }
+            mechanic.place(entity.getLocation(), yaw, entity.getFacing());
             fixed++;
-            Logs.debug("yaw3: " + yaw);
         }
         return fixed > 0;
     }
